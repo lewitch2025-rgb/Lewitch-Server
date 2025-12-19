@@ -3,7 +3,6 @@ import torch
 import uvicorn
 import glob
 from fastapi import FastAPI, HTTPException, BackgroundTasks
-from fastapi.staticfiles import StaticFiles  # <--- NEW IMPORT
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from transformers import (
@@ -20,9 +19,10 @@ from datasets import Dataset
 app = FastAPI(title="Lewitch AI Server", version="1.0")
 
 # --- CORS MIDDLEWARE ---
+# CRITICAL: This allows your Cloudflare website to talk to this Render server
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Allows all origins (change to your specific domain for production)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -136,6 +136,15 @@ def run_training_task(epochs: int, batch_size: int):
 
 # --- API ENDPOINTS ---
 
+@app.get("/")
+async def root():
+    """Simple root endpoint to confirm API is running."""
+    return {
+        "status": "online", 
+        "service": "Lewitch Neural Core", 
+        "docs_url": "/docs"
+    }
+
 @app.get("/api/status")
 async def status_check():
     return {"status": "online", "model": MODEL_ID}
@@ -167,11 +176,6 @@ async def trigger_training(request: TrainRequest, background_tasks: BackgroundTa
         torch.cuda.empty_cache()
     background_tasks.add_task(run_training_task, request.epochs, request.batch_size)
     return {"status": "Training initiated", "info": "Check terminal logs"}
-
-# --- MOUNT WEBSITE ---
-# This serves the 'src' folder at the root URL '/'
-# html=True means it will look for 'index.html' automatically
-app.mount("/", StaticFiles(directory="src", html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
